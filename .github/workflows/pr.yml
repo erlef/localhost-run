@@ -1,0 +1,37 @@
+on:
+  pull_request:
+    branches:
+      - "*"
+  workflow_dispatch: {}
+
+name: "Pull Request"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: "Test"
+
+    permissions:
+      contents: read
+      security-events: write
+
+    uses: ./.github/workflows/part_test.yml
+
+  docs:
+    name: "Docs"
+
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+
+    uses: ./.github/workflows/part_docs.yml
+    with:
+      attest: false
+
+  dependency_review:
+    name: "Dependency Review"
+
+    uses: ./.github/workflows/part_dependency_review.yml

@@ -1,0 +1,37 @@
+on:
+  push:
+    branches:
+      - "main"
+
+name: "Main Branch"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: "Test"
+
+    permissions:
+      contents: read
+      security-events: write
+
+    uses: ./.github/workflows/part_test.yml
+
+  docs:
+    name: "Docs"
+
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+
+    uses: ./.github/workflows/part_docs.yml
+
+  dependency_submission:
+    name: "Mix Dependency Submission"
+
+    permissions:
+      contents: write
+
+    uses: ./.github/workflows/part_dependency_submission.yml

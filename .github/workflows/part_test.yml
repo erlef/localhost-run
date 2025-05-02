@@ -1,0 +1,197 @@
+on:
+  workflow_call: {}
+
+name: "Test"
+
+permissions:
+  contents: read
+
+jobs:
+  detectToolVersions:
+    name: "Detect Tool Versions"
+
+    runs-on: ubuntu-latest
+
+    outputs:
+      otpVersion: "${{ steps.toolVersions.outputs.OTP_VERSION }}"
+      elixirVersion: "${{ steps.toolVersions.outputs.ELIXIR_VERSION }}"
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: "Read .tool-versions"
+        id: toolVersions
+        run: |
+          OTP_VERSION="$(cat .tool-versions | grep erlang | cut -d' ' -f2-)"
+          echo OTP: $OTP_VERSION
+          echo "OTP_VERSION=${OTP_VERSION}" >> $GITHUB_OUTPUT
+
+          ELIXIR_VERSION="$(cat .tool-versions | grep elixir | cut -d' ' -f2-)"
+          echo Rebar: $ELIXIR_VERSION
+          echo "ELIXIR_VERSION=${ELIXIR_VERSION}" >> $GITHUB_OUTPUT
+
+  mix_format:
+    name: mix format
+
+    runs-on: ubuntu-latest
+
+    env:
+      MIX_ENV: dev
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: erlef/setup-beam@5304e04ea2b355f03681464e683d92e3b2f18451 # v1.18.2
+        id: setupBEAM
+        with:
+          version-file: .tool-versions
+          version-type: strict
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |-
+            deps
+            _build/${{ env.MIX_ENV }}
+          key: mix-${{ runner.os }}-${{ env.MIX_ENV }}-${{ steps.setupBEAM.outputs.elixir-version }}-${{ steps.setupBEAM.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            mix-${{ runner.os }}-${{ env.MIX_ENV }}-${{ steps.setupBEAM.outputs.elixir-version }}-${{ steps.setupBEAM.outputs.otp-version }}-
+      - run: mix deps.get
+      - run: mix deps.compile
+      - run: mix compile --warning-as-errors
+      - run: mix format --check-formatted
+
+  mix_test:
+    name: mix test (${{ matrix.elixir }})
+
+    needs: ["detectToolVersions"]
+
+    runs-on: ${{ matrix.runs-on }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - otp: '${{ needs.detectToolVersions.outputs.otpVersion }}'
+            elixir: '1.18.0'
+            runs-on: ubuntu-latest
+          - otp: '${{ needs.detectToolVersions.outputs.otpVersion }}'
+            elixir: '${{ needs.detectToolVersions.outputs.elixirVersion }}'
+            runs-on: ubuntu-latest
+            enable_coverage_export: 'true'
+
+    env:
+      MIX_ENV: test
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: 'true'
+      - uses: erlef/setup-beam@5304e04ea2b355f03681464e683d92e3b2f18451 # v1.18.2
+        id: setupBEAM
+        with:
+          otp-version: ${{ matrix.otp }}
+          elixir-version: ${{ matrix.elixir }}
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |-
+            deps
+            _build/${{ env.MIX_ENV }}
+          key: mix-${{ runner.os }}-${{ env.MIX_ENV }}-${{ steps.setupBEAM.outputs.elixir-version }}-${{ steps.setupBEAM.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            mix-${{ runner.os }}-${{ env.MIX_ENV }}-${{ steps.setupBEAM.outputs.elixir-version }}-${{ steps.setupBEAM.outputs.otp-version }}-
+      - run: mix deps.get
+      - run: mix deps.compile
+      - run: mix compile --warning-as-errors
+      - run: mix coveralls.github
+        if: ${{ matrix.enable_coverage_export == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: mix test
+        if: ${{ !matrix.enable_coverage_export }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  credo:
+    name: mix credo
+
+    runs-on: ubuntu-latest
+
+    env:
+      MIX_ENV: dev
+
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: erlef/setup-beam@5304e04ea2b355f03681464e683d92e3b2f18451 # v1.18.2
+        id: setupBEAM
+        with:
+          version-file: .tool-versions
+          version-type: strict
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |-
+            deps
+            _build/${{ env.MIX_ENV }}
+          key: mix-${{ runner.os }}-${{ env.MIX_ENV }}-${{ steps.setupBEAM.outputs.elixir-version }}-${{ steps.setupBEAM.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            mix-${{ runner.os }}-${{ env.MIX_ENV }}-${{ steps.setupBEAM.outputs.elixir-version }}-${{ steps.setupBEAM.outputs.otp-version }}-
+      - run: mix deps.get
+      - run: mix deps.compile
+      - run: mix compile --warning-as-errors
+      - run: mix credo --strict --format sarif > results.sarif
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@28deaeda66b76a05916b6923827895f2b14ab387 # v3.28.16
+        with:
+          sarif_file: results.sarif
+          category: credo
+
+  dialyxir:
+    name: mix dialyzer
+
+    runs-on: ubuntu-latest
+
+    env:
+      MIX_ENV: dev
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: erlef/setup-beam@5304e04ea2b355f03681464e683d92e3b2f18451 # v1.18.2
+        id: setupBEAM
+        with:
+          version-file: .tool-versions
+          version-type: strict
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |-
+            deps
+            _build/${{ env.MIX_ENV }}
+          key: mix-${{ runner.os }}-${{ env.MIX_ENV }}-${{ steps.setupBEAM.outputs.elixir-version }}-${{ steps.setupBEAM.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            mix-${{ runner.os }}-${{ env.MIX_ENV }}-${{ steps.setupBEAM.outputs.elixir-version }}-${{ steps.setupBEAM.outputs.otp-version }}-
+      - run: mix deps.get
+      - run: mix dialyzer
