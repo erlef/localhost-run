@@ -67,7 +67,7 @@ defmodule LocalhostRun.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.37.3", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.18.5", only: :test, runtime: false},
-      {:plug, "~> 1.17", only: [:dev, :test]},
+      {:plug, "~> 1.18", only: [:dev, :test]},
       {:req, "~> 0.5.10", only: [:dev, :test]},
       {:styler, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
