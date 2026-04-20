@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@6c3c2f2c1c457b00c10c4848d6f5491db3b629df # v2.18.0
         with:
           egress-policy: audit
 
@@ -40,14 +40,14 @@ jobs:
         with:
           version-file: .tool-versions
           version-type: strict
-      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: deps
           key: deps-${{ runner.os }}test-${{ steps.setupBEAM.outputs.elixir-version }}-${{ steps.setupBEAM.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
           restore-keys: |
             deps-${{ runner.os }}test-${{ steps.setupBEAM.outputs.elixir-version }}-${{ steps.setupBEAM.outputs.otp-version }}-
       - run: mix deps.get
-      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: _build/dev
           key: compile-${{ env.MIX_ENV }}-${{ runner.os }}test-${{ steps.setupBEAM.outputs.elixir-version }}-${{ steps.setupBEAM.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
